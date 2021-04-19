@@ -23,7 +23,7 @@ fi
 # get original word
 export word=\$ctxt[word]
 "
-local binds=tab:down,btab:up,change:top,ctrl-space:toggle
+local binds=tab:down,btab:up,change:top,ctrl-space:toggle,alt-/:toggle-preview
 local fzf_command fzf_flags fzf_preview debug_command tmp switch_group fzf_pad
 local ret=0
 
@@ -55,22 +55,24 @@ if [[ $fzf_command == "ftb-tmux-popup" ]]; then
   use_tmux_popup=1
 fi
 
-if (( ! use_tmux_popup )); then
-  # fzf will cause the current line to refresh, so move the cursor down.
-  echoti cud1 >/dev/tty
-  # reset cursor before call fzf
-  echoti cnorm >/dev/tty 2>/dev/null
-fi
+# if (( ! use_tmux_popup )); then
+#   # fzf will cause the current line to refresh, so move the cursor down.
+#   echoti cud1 >/dev/tty
+#   # reset cursor before call fzf
+#   echoti cnorm >/dev/tty 2>/dev/null
+# fi
 
 cat > $tmp_dir/completions.$$
 
-$fzf_command \
+local res
+_ftb_query="$(gdd bs=1G count=1 status=none iflag=nonblock < /dev/tty)"
+res="$(cat $tmp_dir/completions.$$ | sdlit '\x00' $'\C-^' | SHEL=/usr/local/bin/zshplain.dash $fzf_command \
   --ansi \
   --bind=$binds \
   --bind="${switch_group[1]}:reload($reload_command -1),${switch_group[2]}:reload($reload_command 1)" \
   --color=hl:$(( header_lines == 0 ? 188 : 255 )) \
   --cycle \
-  --delimiter='\x00' \
+  --delimiter=$'\C-^' \
   --expect=$continuous_trigger,$print_query,$accept_line \
   --header-lines=$header_lines \
   --height=${FZF_TMUX_HEIGHT:=$(( lines > LINES / 3 * 2 ? LINES / 3 * 2 : lines ))} \
@@ -80,13 +82,20 @@ $fzf_command \
   --print-query \
   --query=$_ftb_query \
   --tiebreak=begin \
-  ${fzf_preview:+--preview=$ftb_preview_init$fzf_preview} \
-  $fzf_flags < $tmp_dir/completions.$$ || ret=$?
+  --preview='cat {f}' \
+  $fzf_flags \
+  --preview-window bottom:2:wrap:nohidden:nocycle)" || ret=$?
 
-if (( ! use_tmux_popup )); then
-  echoti civis >/dev/tty 2>/dev/null
-  echoti cuu1 >/dev/tty
+if (( ret == 0 )) ; then
+   print -r -- '========'$'\n'"query: $_ftb_query"$'\n'"res: $res" >> ~/logs/fztab
+   print -nr -- "$res" | sdlit $'\C-^' '\x00'
 fi
 
-command rm $tmp_dir/*.$$ 2>/dev/null
+# if (( ! use_tmux_popup )); then
+#   echoti civis >/dev/tty 2>/dev/null
+#   echoti cuu1 >/dev/tty
+# fi
+
+# echo files $tmp_dir/*.$$
+# command rm $tmp_dir/*.$$ 2>/dev/null
 return $ret

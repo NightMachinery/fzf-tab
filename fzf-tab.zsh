@@ -121,6 +121,12 @@
 
       choices=("${(@f)"$(builtin print -rl -- $_ftb_headers $_ftb_complist | -ftb-fzf)"}")
       ret=$?
+      # ch_tmp=( "$choices[1,5]" )
+      # typeset -p ch_tmp
+      # ectrace "$0: ret: $ret, #choices: ${#choices}"
+      if (( ret != 0 )) ; then
+        return $ret
+      fi
       # choices=(query_string expect_key returned_word)
 
       # insert query string directly
